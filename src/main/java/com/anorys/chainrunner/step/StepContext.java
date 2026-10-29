@@ -34,6 +34,9 @@ public interface StepContext {
     /** Sleeps {@code nanos}, waking up to check for a stop; false when the user stopped the run. */
     boolean sleep(long nanos) throws InterruptedException;
 
+    /** Whether the user stopped the run. */
+    boolean cancelled();
+
     /** Shows a step still running: a poll after each attempt. */
     void progress(CallResult running);
 

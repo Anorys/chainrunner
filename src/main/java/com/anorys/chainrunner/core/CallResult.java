@@ -63,5 +63,13 @@ public record CallResult(Status status, Request request, Integer httpStatus, Dur
         public boolean sql() {
             return "SQL".equals(method);
         }
+
+        /** Whether it is an HTTP request: its URL may have a query. */
+        public boolean http() {
+            return switch (method) {
+                case "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS" -> true;
+                default -> false;
+            };
+        }
     }
 }

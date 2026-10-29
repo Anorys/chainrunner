@@ -91,13 +91,12 @@ Clés de toutes les étapes :
 | Clé | Défaut | Signification |
 |---|---|---|
 | `name` | méthode et chemin | affiché partout ; peut contenir des `{{variables}}` |
-| `type` | `http` | `http` ou `poll` |
+| `type` | `http` | `http`, `poll`, `sql`, `file` ou `command` |
 | `forEach` | | répète cette étape pour chaque valeur (chaque combinaison avec plusieurs variables) |
 | `extract` | | `variable: où` : des valeurs pour les étapes suivantes |
 | `skipIf` / `onlyIf` | | une requête lancée d'abord ; `{ sql, database }` pour interroger une autre base |
-| `database` | la seule | la base d'une étape `poll` et de la garde |
+| `database` | la seule | la base d'une étape `poll` ou `sql` et de la garde |
 | `enabled` | `true` | `false` retire l'étape |
-| `stopOnServerError`, `stopOnClientError` | ceux des options | les règles d'enchaînement de cette étape |
 
 ### Étapes HTTP
 
@@ -116,6 +115,7 @@ Clés de toutes les étapes :
 | `saveTo` | | écrit la réponse dans ce fichier (relatif à la configuration) |
 | `saveAs` | `raw` | `raw`, ou `base64:/json/pointer` pour un champ base64 d'une réponse JSON |
 | `overwrite` | `false` | remplace un fichier existant |
+| `stopOnServerError`, `stopOnClientError` | ceux des options | les règles d'enchaînement de cette étape |
 
 ### Étapes d'attente (`poll`)
 
@@ -127,6 +127,52 @@ Clés de toutes les étapes :
 | `onTimeout` | `next` | `next` : cette valeur échoue, les autres continuent ; `stop` : la séquence s'arrête |
 | `onManyRows` | `first` | `first` ou `fail` |
 | `extract` | toutes les colonnes | `variable: colonne`, casse indifférente |
+
+### Étapes SQL
+
+Une requête lancée une seule fois.
+
+| Clé | Défaut | Signification |
+|---|---|---|
+| `sql` | obligatoire | un `select` ou un `with ... select` ; les `{{variables}}` deviennent des paramètres |
+| `allowEmpty` | `false` | `true` : aucune ligne n'est pas un échec (les listes sont vides, les valeurs simples non définies) |
+| `extract` | toutes les colonnes de la première ligne | `variable: colonne` pour la première ligne, `variable: colonne[]` pour la liste de toutes les lignes |
+
+Une liste extraite avec `colonne[]` peut servir dans une requête suivante (`where id in ({{ids}})`), un
+paramètre de requête ou un corps.
+
+### Étapes fichier
+
+Lit un fichier.
+
+| Clé | Défaut | Signification |
+|---|---|---|
+| `path` | obligatoire | relatif à la configuration ; peut contenir des `{{variables}}` |
+| `format` | selon l'extension | `json`, `csv` ou `text` (`auto` : `.json`, `.csv`, sinon texte) |
+| `delimiter` | `;` ou `,` | pour le CSV : deviné d'après la ligne d'en-tête s'il est omis |
+| `extract` | | JSON : un pointeur (`/order/id`). CSV : `colonne` (première ligne) ou `colonne[]` (toutes les lignes). Texte : `content` ou `lines` |
+
+La première ligne du CSV nomme les colonnes ; les champs peuvent être entre guillemets (`"a; b"`, `""`
+pour un guillemet).
+
+### Étapes commande
+
+Lance un programme : le moyen de brancher ce que ChainRunner ne fait pas lui-même, dans n'importe quel
+langage.
+
+| Clé | Défaut | Signification |
+|---|---|---|
+| `run` | obligatoire | une liste (`[./notify.sh, "{{id}}"]` : le programme et ses arguments, sans shell) ou un texte (lancé par `sh -c`, `cmd /c` sous Windows) |
+| `input` | | écrit sur son entrée standard : du YAML envoyé en JSON, ou un texte |
+| `env` | | des variables d'environnement ajoutées pour le programme |
+| `dir` | le dossier de la configuration | où il s'exécute |
+| `timeout` | celui des options | le programme est arrêté après ce délai |
+| `expectExit` | `0` | les codes de sortie qui comptent comme OK |
+| `stopOnError` | `false` | `true` : un échec arrête la séquence |
+| `extract` | | `stdout` (toute la sortie), `stderr`, `exitCode`, ou un pointeur JSON de la sortie |
+
+Avec un texte, les `{{variables}}` vont dans une ligne de commande shell : préférez la forme liste quand
+une valeur vient d'une réponse.
 
 ## Règles d'enchaînement
 
@@ -142,6 +188,8 @@ Clés de toutes les étapes :
 | base injoignable, requête refusée | arrête la séquence |
 | téléchargement : le fichier existe | cette valeur échoue, la séquence continue |
 | garde : l'étape est inutile | pas un échec, les étapes suivantes continuent |
+| sql : aucune ligne (sans `allowEmpty`), fichier absent ou illisible | cette valeur échoue, la séquence continue |
+| commande : code de sortie inattendu, délai dépassé | cette valeur échoue (`stopOnError: true` arrête la séquence) |
 
 Dans un `forEach`, un échec qui n'arrête pas la séquence n'abandonne que les étapes suivantes de cette
 valeur.

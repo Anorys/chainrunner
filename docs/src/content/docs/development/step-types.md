@@ -12,11 +12,14 @@ The native executable only holds the classes it was built with: a jar dropped ne
 loaded. A new type of step is therefore a class added to the code and to the `StepKinds` list, and it
 ships with the next release.
 
+To add something without a new release, use a `command` step: it runs any program, gives it the
+variables on its standard input and reads values from its output.
+
 ## The pieces
 
 | Piece | Role |
 |---|---|
-| `StepKind` | a type: its name (`http`, `poll`) and the reading of its own fields |
+| `StepKind` | a type: its name (`http`, `poll`, `sql`, `file`, `command`) and the reading of its own fields |
 | `Step` | one step as read from the file: renders its request, runs it, describes itself for the screen |
 | `StepContext` | what the runner lends to a step: environment, options, HTTP client and tokens, databases, stop, progress |
 | `StepFields` | the fields of the step in the YAML, with the same readers and error messages as the rest of the configuration |
@@ -33,6 +36,6 @@ What every step shares is read before the type and handled by the runner: `name`
    writes it. It throws `UnknownVariableException` while a variable is not known yet.
 3. `run(...)` returns a `CallResult`: `OK` with the extracted values, or `failed(...)` with `halt` set
    when the sequence must stop.
-4. `label()`, `summary()`, `details()` and `waiting()` say how the step looks in the steps list and the
+4. `label()`, `summary()`, `details()`, `waiting()` and `outcome()` say how the step looks in the steps list and the
    detail panel.
 5. Add the kind to `StepKinds`, then tests, the configuration reference and an example.

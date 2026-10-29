@@ -277,6 +277,11 @@ public final class Runner {
         }
 
         @Override
+        public boolean cancelled() {
+            return cancelled.getAsBoolean();
+        }
+
+        @Override
         public void progress(CallResult running) {
             if (planned != null) {
                 listener.progress(planned, running);

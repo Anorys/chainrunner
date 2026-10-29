@@ -13,11 +13,14 @@ L'exécutable natif ne contient que les classes avec lesquelles il a été const
 ne pourrait pas être chargé. Un nouveau type d'étape est donc une classe ajoutée au code et à la liste
 `StepKinds`, livrée avec la release suivante.
 
+Pour ajouter quelque chose sans nouvelle release, utilisez une étape `command` : elle lance n'importe
+quel programme, lui passe les variables sur son entrée standard et lit des valeurs dans sa sortie.
+
 ## Les pièces
 
 | Pièce | Rôle |
 |---|---|
-| `StepKind` | un type : son nom (`http`, `poll`) et la lecture de ses propres champs |
+| `StepKind` | un type : son nom (`http`, `poll`, `sql`, `file`, `command`) et la lecture de ses propres champs |
 | `Step` | une étape lue dans le fichier : rend sa requête, s'exécute, se décrit pour l'écran |
 | `StepContext` | ce que le runner prête à une étape : environnement, options, client HTTP et jetons, bases, arrêt, progression |
 | `StepFields` | les champs de l'étape dans le YAML, avec les mêmes lecteurs et messages d'erreur que le reste de la configuration |
@@ -34,6 +37,6 @@ Ce que toutes les étapes partagent est lu avant le type et géré par le runner
    l'écrit. Elle lève `UnknownVariableException` tant qu'une variable n'est pas encore connue.
 3. `run(...)` renvoie un `CallResult` : `OK` avec les valeurs extraites, ou `failed(...)` avec `halt`
    quand la séquence doit s'arrêter.
-4. `label()`, `summary()`, `details()` et `waiting()` disent comment l'étape apparaît dans la liste et
+4. `label()`, `summary()`, `details()`, `waiting()` et `outcome()` disent comment l'étape apparaît dans la liste et
    dans le panneau de détail.
 5. Ajouter le type à `StepKinds`, puis des tests, la référence de configuration et un exemple.

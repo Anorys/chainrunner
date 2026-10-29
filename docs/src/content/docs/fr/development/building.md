@@ -45,7 +45,7 @@ PostgreSQL viennent du dépôt de métadonnées d'accessibilité de GraalVM. Une
 |---|---|
 | `config` | le YAML, lu dans des records ; chaque erreur indique la clé fautive |
 | `core` | la planification (`forEach`), l'exécution (`Runner`), les jetons, les templates, la base, le journal |
-| `step` | les types d'étapes (`http`, `poll`) et leur registre, voir [Types d'étapes](../step-types/) |
+| `step` | les types d'étapes (`http`, `poll`, `sql`, `file`, `command`) et leur registre, voir [Types d'étapes](../step-types/) |
 | `cli` | `--run` et `self-update` |
 | `tui` | l'interface terminal : état, touches, vues et thème |
 | `update` | les releases GitHub, la vérification quotidienne, le remplacement de l'exécutable |
