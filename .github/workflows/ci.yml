@@ -64,6 +64,7 @@ jobs:
         shell: bash
         env:
           CHAINRUNNER_NO_UPDATE_CHECK: '1'
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           exe="$PWD/target/${{ matrix.exe }}"
@@ -86,6 +87,10 @@ jobs:
           set -e
           test "$code" -eq 2
           "$exe" self-update --help > /dev/null
+          # HTTPS works in the image; on Windows, the Windows root certificates are trusted too.
+          "$exe" --check-tls | tee "$RUNNER_TEMP/tls.txt"
+          if [ "$RUNNER_OS" = Windows ]; then grep -q ' + Windows (' "$RUNNER_TEMP/tls.txt"; fi
+          "$exe" self-update --check
       - uses: actions/upload-artifact@v4
         with:
           name: chainrunner-${{ runner.os }}

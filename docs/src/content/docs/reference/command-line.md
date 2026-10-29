@@ -23,6 +23,7 @@ it runs as with `--run`.
 | `--list` | lists the environments and the sequences |
 | `--no-update-check` | does not look for a newer release |
 | `--check-terminal` | says which terminal support loaded (diagnostics) |
+| `--check-tls` | says where the trusted certificates come from (diagnostics) |
 | `-V`, `--version` | the version |
 | `-h`, `--help` | the help |
 
@@ -33,6 +34,22 @@ it runs as with `--run`.
 | `--check` | only says whether a newer release exists |
 | `--to X.Y.Z` | installs this version, also an older one |
 | `--force` | installs even when this version is already the latest |
+
+## Certificates
+
+HTTPS requests (steps, tokens, release check, `self-update`) trust the certificate authorities that
+come with Java and, on Windows, also those of the Windows root store (*Trusted Root Certification
+Authorities*, of the machine and of the user). A company proxy that decrypts HTTPS is therefore trusted
+as soon as its certificate is installed in Windows, as for the browsers. `chainrunner --check-tls`
+shows what was loaded:
+
+```text
+TLS trust: Java (146 certificates) + Windows (63 certificates)
+```
+
+On Linux and macOS, only the Java list is used; another one can be given with
+`-Djavax.net.ssl.trustStore=/path/to/truststore.jks -Djavax.net.ssl.trustStorePassword=changeit`.
+`options.insecureTls: true` turns the check off for the steps (test servers only).
 
 ## Environment variables
 

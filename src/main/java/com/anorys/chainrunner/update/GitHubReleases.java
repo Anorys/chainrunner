@@ -1,5 +1,6 @@
 package com.anorys.chainrunner.update;
 
+import com.anorys.chainrunner.core.Tls;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -68,7 +69,8 @@ public final class GitHubReleases implements ReleaseSource {
         this.timeout = timeout;
         HttpClient.Builder builder = HttpClient.newBuilder()
                 .connectTimeout(timeout)
-                .followRedirects(HttpClient.Redirect.NEVER);
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .sslContext(Tls.context());
         proxyFromEnvironment(System.getenv()).ifPresent(builder::proxy);
         this.http = builder.build();
     }
