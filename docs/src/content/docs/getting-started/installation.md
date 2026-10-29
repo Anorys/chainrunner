@@ -39,7 +39,8 @@ Once a day, ChainRunner looks up the latest release in the background and says a
 newer one is out. It does not look in CI (`CI` is set), without a terminal, with `--no-update-check`,
 or with `CHAINRUNNER_NO_UPDATE_CHECK=1`.
 
-Behind a proxy, set `HTTPS_PROXY` (hosts in `NO_PROXY` are reached directly).
+Behind a proxy, set `HTTPS_PROXY=http://proxy.example.com:8080` for the release check and
+`self-update`; the steps use another setting, see [Proxy](../../reference/command-line/#proxy).
 `CHAINRUNNER_UPDATE_URL` points to a mirror of the GitHub releases API, and
 `CHAINRUNNER_GITHUB_TOKEN` (or `GH_TOKEN`) is sent to it when set.
 
