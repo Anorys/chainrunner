@@ -35,6 +35,11 @@ public record CallResult(Status status, Request request, Integer httpStatus, Dur
         return new CallResult(Status.SKIPPED, null, null, null, null, why, Map.of(), List.of(), false);
     }
 
+    public static CallResult failed(Request request, Integer httpStatus, Duration took, String body, String error,
+                                    List<String> notes, boolean halt) {
+        return new CallResult(Status.FAILED, request, httpStatus, took, body, error, Map.of(), List.copyOf(notes), halt);
+    }
+
     public boolean ok() {
         return status == Status.OK;
     }

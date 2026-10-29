@@ -28,6 +28,54 @@ public interface Database extends AutoCloseable {
     @Override
     void close();
 
+    /** A column of a row, its name in any case: PostgreSQL folds {@code docID} to {@code docid}. */
+    static Object column(Map<String, Object> row, String name) {
+        if (row.containsKey(name)) {
+            return row.get(name);
+        }
+        for (Map.Entry<String, Object> e : row.entrySet()) {
+            if (e.getKey().equalsIgnoreCase(name)) {
+                return e.getValue();
+            }
+        }
+        return null;
+    }
+
+    /** The error when one of {@code columns} is not in the result, else null (and null without rows). */
+    static String missingColumn(List<Map<String, Object>> rows, java.util.Collection<String> columns) {
+        if (rows.isEmpty()) {
+            return null;
+        }
+        for (String column : columns) {
+            if (rows.get(0).keySet().stream().noneMatch(k -> k.equalsIgnoreCase(column))) {
+                return "extract: column '" + column + "' is not in the result (columns: "
+                        + String.join(", ", rows.get(0).keySet()) + ")";
+            }
+        }
+        return null;
+    }
+
+    /** Rows as shown on the screen and in the log: {@code col = value  ·  col = value}, at most 10. */
+    static String shown(List<Map<String, Object>> rows) {
+        StringBuilder out = new StringBuilder();
+        int shown = Math.min(rows.size(), 10);
+        for (int i = 0; i < shown; i++) {
+            List<String> cells = new ArrayList<>();
+            rows.get(i).forEach((k, v) -> cells.add(k + " = " + (v == null ? "null" : Template.format(v))));
+            out.append(String.join("  ·  ", cells)).append('\n');
+        }
+        if (rows.size() > shown) {
+            out.append("… ").append(rows.size() - shown).append(" more rows\n");
+        }
+        return out.toString().stripTrailing();
+    }
+
+    /** The message of a refused query, with its SQL state. */
+    static String message(SQLException e) {
+        String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage().strip();
+        return e.getSQLState() == null ? message : message + " [" + e.getSQLState() + "]";
+    }
+
     /** Opens a connection; the runner opens it at the first {@code poll} step and closes it at the end. */
     @FunctionalInterface
     interface Opener {

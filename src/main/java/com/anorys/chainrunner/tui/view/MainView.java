@@ -1,6 +1,5 @@
 package com.anorys.chainrunner.tui.view;
 
-import com.anorys.chainrunner.config.ChainRunnerConfig;
 import com.anorys.chainrunner.config.ChainRunnerConfig.Environment;
 import com.anorys.chainrunner.config.ChainRunnerConfig.Sequence;
 import com.anorys.chainrunner.core.CallResult;
@@ -11,6 +10,7 @@ import com.anorys.chainrunner.core.Planner.PlannedCall;
 import com.anorys.chainrunner.core.Runner;
 import com.anorys.chainrunner.core.Template;
 import com.anorys.chainrunner.core.Template.UnknownVariableException;
+import com.anorys.chainrunner.step.Step;
 import com.anorys.chainrunner.tui.AppState;
 import com.anorys.chainrunner.tui.AppState.Dialog;
 import com.anorys.chainrunner.tui.AppState.DialogLine;
@@ -384,30 +384,27 @@ public final class MainView {
             if (preview) {
                 request = preview(state, call);
             }
+            Step step = call.call().step();
             String what = result.status() == CallResult.Status.UNNEEDED ? "SQL QUERY (" + call.call().guard().keyword() + ")"
-                    : call.call().isPoll() ? "SQL QUERY" : "REQUEST";
+                    : step.requestTitle();
             lines.add(section(preview ? what + " (preview)" : what));
-            if (request == null && call.call().isPoll()) {
-                for (String line : call.call().poll().sql().split("\n")) {
+            if (request == null) {
+                for (String line : step.summary().split("\n")) {
                     for (String w : Paint.wrap(line, width)) {
                         lines.add(Line.from(Span.styled(w, theme.subtext())));
                     }
                 }
                 lines.add(Line.from(Span.styled("Uses a value extracted by an earlier step: known when it runs.", theme.muted())));
-            } else if (request == null) {
-                lines.add(Line.from(Span.styled(call.call().method() + " " + (call.call().path() != null ? call.call().path() : call.call().url()), theme.text())));
-                lines.add(Line.from(Span.styled("Uses a value extracted by an earlier step: known when it runs.", theme.muted())));
             } else {
                 addRequest(lines, request, width);
             }
-            if (call.call().isPoll()) {
-                var poll = call.call().poll();
-                lines.add(Line.from(Span.styled("every ", theme.muted()), Span.styled(Runner.clock(poll.every()), theme.text()),
-                        Span.styled(", at most ", theme.muted()), Span.styled(Runner.clock(poll.timeout()), theme.text()),
-                        Span.styled(poll.onTimeout() == ChainRunnerConfig.OnTimeout.STOP ? "  then stop" : "  then go on", theme.muted())));
-            } else if (call.call().save() != null) {
-                lines.add(Line.from(Span.styled("saved to ", theme.muted()), Span.styled(call.call().save().saveTo(), theme.text()),
-                        Span.styled(call.call().save().base64Pointer() == null ? "" : "  (base64 " + call.call().save().base64Pointer() + ")", theme.muted())));
+            for (Step.Detail detail : step.details()) {
+                lines.add(Line.from(Span.styled(detail.label() + " ", theme.muted()), Span.styled(detail.value(),
+                        switch (detail.kind()) {
+                            case API -> theme.fg(Theme.ACCENT);
+                            case DATABASE -> theme.fg(Theme.VIOLET);
+                            case TEXT -> theme.text();
+                        })));
             }
             if (call.call().guard() != null && !(result.status() == CallResult.Status.UNNEEDED)) {
                 var guard = call.call().guard();
@@ -419,10 +416,7 @@ public final class MainView {
                     }
                 }
             }
-            if (call.call().api() != null && !call.call().isPoll()) {
-                lines.add(Line.from(Span.styled("api ", theme.muted()), Span.styled(call.call().api(), theme.fg(Theme.ACCENT))));
-            }
-            if (call.call().database() != null && (call.call().isPoll() || call.call().guard() != null)) {
+            if (call.call().database() != null && (step.usesDatabase() || call.call().guard() != null)) {
                 lines.add(Line.from(Span.styled("database ", theme.muted()), Span.styled(call.call().database(), theme.fg(Theme.VIOLET))));
             }
             if (!call.call().extract().isEmpty()) {
@@ -436,13 +430,9 @@ public final class MainView {
                         Span.styled(" runs this step alone.", theme.muted())));
             } else if (result.status() == CallResult.Status.RUNNING) {
                 lines.add(section("RESPONSE"));
-                if (call.call().isPoll()) {
-                    lines.add(Line.from(Span.styled(theme.glyphs().spinner(state.tick()) + " waiting for a row…", theme.fg(Theme.ACCENT))));
-                    for (String note : result.notes()) {
-                        lines.add(Line.from(Span.styled("  " + note, theme.subtext())));
-                    }
-                } else {
-                    lines.add(Line.from(Span.styled(theme.glyphs().spinner(state.tick()) + " waiting for the response…", theme.fg(Theme.ACCENT))));
+                lines.add(Line.from(Span.styled(theme.glyphs().spinner(state.tick()) + " " + step.waiting(), theme.fg(Theme.ACCENT))));
+                for (String note : result.notes()) {
+                    lines.add(Line.from(Span.styled("  " + note, theme.subtext())));
                 }
             } else {
                 addResponse(lines, result, width);

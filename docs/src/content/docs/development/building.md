@@ -43,6 +43,7 @@ event out of the image.
 |---|---|
 | `config` | the YAML, read into records; every error says which key is wrong |
 | `core` | planning (`forEach`), running (`Runner`), tokens, templates, the database, the run log |
+| `step` | the types of steps (`http`, `poll`) and their registry, see [Step types](../step-types/) |
 | `cli` | `--run` and `self-update` |
 | `tui` | the terminal UI: state, keys, views and theme |
 | `update` | GitHub releases, the daily check, the executable swap |

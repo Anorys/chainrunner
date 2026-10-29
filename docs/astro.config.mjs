@@ -77,6 +77,7 @@ export default defineConfig({
 					items: [
 						{ slug: 'development/building' },
 						{ slug: 'development/releasing' },
+						{ slug: 'development/step-types' },
 						{ slug: 'development/tui-style-guide' },
 					],
 				},

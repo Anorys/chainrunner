@@ -48,11 +48,11 @@ public final class TokenClients {
     public List<TokenClient> forCalls(List<Planner.PlannedCall> calls) {
         Set<TokenClient> used = new LinkedHashSet<>();
         for (Planner.PlannedCall c : calls) {
-            if (c.call().isPoll() || !c.call().auth()) {
+            if (!c.call().step().sendsToken()) {
                 continue;
             }
             try {
-                TokenClient client = of(env.api(c.call().api()));
+                TokenClient client = of(env.api(c.call().step().api()));
                 if (client.auth().enabled()) {
                     used.add(client);
                 }

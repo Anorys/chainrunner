@@ -15,6 +15,7 @@ import com.anorys.chainrunner.core.Runner;
 import com.anorys.chainrunner.core.Template.UnknownVariableException;
 import com.anorys.chainrunner.core.TokenClient;
 import com.anorys.chainrunner.core.TokenClients;
+import com.anorys.chainrunner.step.Step;
 
 import java.io.Console;
 import java.io.PrintStream;
@@ -104,11 +105,14 @@ public final class Batch {
                     if (r.sql()) {
                         String sql = new Database.Statement(r.body(), r.params()).shown();
                         out.println("     " + ansi.muted(sql.replace("\n", "\n     ")));
-                        var poll = call.call().poll();
-                        out.println("     " + ansi.muted("every " + Runner.clock(poll.every()) + ", at most " + Runner.clock(poll.timeout())
-                                + (call.call().extract().isEmpty() ? "" : "  extract " + call.call().extract())));
                     } else if (r.body() != null) {
                         out.println("     " + ansi.muted(r.body()));
+                    }
+                    for (Step.Detail detail : call.call().step().details()) {
+                        out.println("     " + ansi.muted(detail.label() + " " + detail.value()));
+                    }
+                    if (!call.call().extract().isEmpty()) {
+                        out.println("     " + ansi.muted("extract " + call.call().extract()));
                     }
                 } catch (UnknownVariableException e) {
                     out.println(ansi.muted(String.format(Locale.ROOT, "%3d. ", call.index() + 1)) + call.name()

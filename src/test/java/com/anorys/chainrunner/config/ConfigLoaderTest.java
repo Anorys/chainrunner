@@ -1,6 +1,8 @@
 package com.anorys.chainrunner.config;
 
 import com.anorys.chainrunner.config.ChainRunnerConfig.GrantType;
+import com.anorys.chainrunner.step.HttpStep;
+import com.anorys.chainrunner.step.PollStep;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
@@ -25,7 +27,7 @@ class ConfigLoaderTest {
         assertThat(config.environment("dev").orElseThrow().api("orders").auth().tokenUrl())
                 .isEqualTo("https://sso-dev.example.com/realms/example/protocol/openid-connect/token");
         assertThat(config.variables().get("accountIds")).isEqualTo(List.of("ACC001", "ACC002", "ACC003"));
-        assertThat(config.sequence("generate").orElseThrow().calls().get(0).expectStatus()).containsExactly(200, 204);
+        assertThat(((HttpStep) config.sequence("generate").orElseThrow().calls().get(0).step()).expectStatus()).containsExactly(200, 204);
         assertThat(config.options().stopOnServerError()).isTrue();
         assertThat(config.options().stopOnClientError()).isFalse();
     }
@@ -88,16 +90,18 @@ class ConfigLoaderTest {
         assertThat(full.forEach()).containsEntry("accountId", "{{accountIds}}");
         assertThat(full.order()).isEqualTo(ChainRunnerConfig.Order.PHASES);
         ChainRunnerConfig.Call poll = full.calls().get(1);
-        assertThat(poll.isPoll()).isTrue();
-        assertThat(poll.poll().sql()).startsWith("select doc_id").contains("account_id = {{accountId}}", "{{today | date(\"MM\")}}");
+        assertThat(poll.step()).isInstanceOf(PollStep.class);
+        PollStep pollStep = (PollStep) poll.step();
+        assertThat(pollStep.sql()).startsWith("select doc_id").contains("account_id = {{accountId}}", "{{today | date(\"MM\")}}");
         assertThat(poll.database()).isEqualTo("orders");
-        assertThat(poll.poll().every()).isEqualTo(java.time.Duration.ofSeconds(10));
-        assertThat(poll.poll().timeout()).isEqualTo(java.time.Duration.ofMinutes(15));
-        assertThat(poll.poll().onTimeout()).isEqualTo(ChainRunnerConfig.OnTimeout.NEXT);
+        assertThat(pollStep.every()).isEqualTo(java.time.Duration.ofSeconds(10));
+        assertThat(pollStep.timeout()).isEqualTo(java.time.Duration.ofMinutes(15));
+        assertThat(pollStep.onTimeout()).isEqualTo(PollStep.OnTimeout.NEXT);
         assertThat(poll.extract()).containsEntry("docId", "doc_id");
         ChainRunnerConfig.Call download = full.calls().get(2);
-        assertThat(download.save().saveTo()).isEqualTo("{{documentDir}}/{{env}}/{{today}}/{{accountId}}-{{docId}}.xml");
-        assertThat(download.save().base64Pointer()).isNull();
+        HttpStep.Save save = ((HttpStep) download.step()).save();
+        assertThat(save.saveTo()).isEqualTo("{{documentDir}}/{{env}}/{{today}}/{{accountId}}-{{docId}}.xml");
+        assertThat(save.base64Pointer()).isNull();
         assertThat(download.guard().database()).isEqualTo("document");
         assertThat(full.calls().get(0).guard().database()).isNull();
         assertThat(full.calls().get(0).database()).isEqualTo("orders");
@@ -120,14 +124,16 @@ class ConfigLoaderTest {
                       - { type: poll, sql: "select 1", every: 500ms, timeout: 90, onTimeout: stop, onManyRows: fail }
                       - { path: /d, saveTo: out.pdf, saveAs: "base64:$.data.content", overwrite: true }
                 """);
-        ChainRunnerConfig.Call poll = config.sequences().get(0).calls().get(0);
-        assertThat(poll.poll().every()).isEqualTo(java.time.Duration.ofMillis(500));
-        assertThat(poll.poll().timeout()).isEqualTo(java.time.Duration.ofSeconds(90));
-        assertThat(poll.poll().onTimeout()).isEqualTo(ChainRunnerConfig.OnTimeout.STOP);
-        assertThat(poll.poll().onManyRows()).isEqualTo(ChainRunnerConfig.OnManyRows.FAIL);
-        assertThat(config.sequences().get(0).calls().get(1).save().base64Pointer()).isEqualTo("/data/content");
+        PollStep poll = (PollStep) config.sequences().get(0).calls().get(0).step();
+        assertThat(poll.every()).isEqualTo(java.time.Duration.ofMillis(500));
+        assertThat(poll.timeout()).isEqualTo(java.time.Duration.ofSeconds(90));
+        assertThat(poll.onTimeout()).isEqualTo(PollStep.OnTimeout.STOP);
+        assertThat(poll.onManyRows()).isEqualTo(PollStep.OnManyRows.FAIL);
+        assertThat(((HttpStep) config.sequences().get(0).calls().get(1).step()).save().base64Pointer()).isEqualTo("/data/content");
 
         assertThatThrownBy(() -> parse(head + "      - { type: poll }\n")).hasMessageContaining("sql is required");
+        assertThatThrownBy(() -> parse(head + "      - { type: ftp, path: /x }\n"))
+                .hasMessage("sequences.s.steps[0].type: 'ftp' is unknown (http, poll)");
         assertThatThrownBy(() -> parse(head + "      - { type: poll, sql: x, every: soon }\n")).hasMessageContaining("every");
         assertThatThrownBy(() -> parse(head + "      - { type: poll, sql: x, onTimeout: wait }\n")).hasMessageContaining("next, stop");
         assertThatThrownBy(() -> parse(head + "      - { type: soap, sql: x }\n")).hasMessageContaining("http, poll");
