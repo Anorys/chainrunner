@@ -83,6 +83,14 @@ public record PollStep(String sql, Duration every, Duration timeout, OnTimeout o
     }
 
     @Override
+    public String outcome(CallResult result) {
+        if (result.status() == Status.OK) {
+            return "found";
+        }
+        return result.status() == Status.FAILED && result.error() != null && result.error().startsWith("no row") ? "timeout" : null;
+    }
+
+    @Override
     public boolean usesDatabase() {
         return true;
     }

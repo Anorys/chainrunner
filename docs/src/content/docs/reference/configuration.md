@@ -91,13 +91,12 @@ Keys of every step:
 | Key | Default | Meaning |
 |---|---|---|
 | `name` | method and path | shown everywhere; can hold `{{variables}}` |
-| `type` | `http` | `http` or `poll` |
+| `type` | `http` | `http`, `poll`, `sql`, `file` or `command` |
 | `forEach` | | repeats this step for each value (each combination with several variables) |
 | `extract` | | `variable: where`: values for the next steps |
 | `skipIf` / `onlyIf` | | a query run first; `{ sql, database }` to query another database |
-| `database` | the only one | the database of a `poll` step and of the guard |
+| `database` | the only one | the database of a `poll` or `sql` step and of the guard |
 | `enabled` | `true` | `false` leaves the step out |
-| `stopOnServerError`, `stopOnClientError` | the options' | the chaining rules for this step |
 
 ### HTTP steps
 
@@ -116,6 +115,7 @@ Keys of every step:
 | `saveTo` | | writes the response to this file (relative to the configuration) |
 | `saveAs` | `raw` | `raw`, or `base64:/json/pointer` for a base64 field of a JSON response |
 | `overwrite` | `false` | replaces an existing file |
+| `stopOnServerError`, `stopOnClientError` | the options' | the chaining rules for this step |
 
 ### Poll steps
 
@@ -127,6 +127,50 @@ Keys of every step:
 | `onTimeout` | `next` | `next`: this value fails, the others go on; `stop`: the sequence stops |
 | `onManyRows` | `first` | `first` or `fail` |
 | `extract` | every column | `variable: column`, any case |
+
+### SQL steps
+
+A query run once.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `sql` | required | a `select` or `with ... select`; `{{variables}}` become parameters |
+| `allowEmpty` | `false` | `true`: no row is not a failure (the lists are empty, the single values not set) |
+| `extract` | every column of the first row | `variable: column` for the first row, `variable: column[]` for the list of every row |
+
+A list extracted with `column[]` can be used in a later query (`where id in ({{ids}})`), a query
+parameter or a body.
+
+### File steps
+
+Reads a file.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `path` | required | relative to the configuration; can hold `{{variables}}` |
+| `format` | from the extension | `json`, `csv` or `text` (`auto`: `.json`, `.csv`, else text) |
+| `delimiter` | `;` or `,` | for CSV: guessed from the header line when left out |
+| `extract` | | JSON: a pointer (`/order/id`). CSV: `column` (first row) or `column[]` (every row). Text: `content` or `lines` |
+
+The CSV file's first line names the columns; fields may be quoted (`"a; b"`, `""` for a quote).
+
+### Command steps
+
+Runs a program: the way to plug in what ChainRunner does not do itself, in any language.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `run` | required | a list (`[./notify.sh, "{{id}}"]`: the program and its arguments, no shell) or a text (run by `sh -c`, `cmd /c` on Windows) |
+| `input` | | written to its standard input: YAML sent as JSON, or a text |
+| `env` | | environment variables added for the program |
+| `dir` | the configuration's folder | where it runs |
+| `timeout` | the options' | the program is stopped after it |
+| `expectExit` | `0` | the exit codes that count as OK |
+| `stopOnError` | `false` | `true`: a failure stops the sequence |
+| `extract` | | `stdout` (the whole output), `stderr`, `exitCode`, or a JSON pointer of the output |
+
+With a text, `{{variables}}` go into a shell command line: prefer the list form when a value comes
+from a response.
 
 ## Chaining rules
 
@@ -142,6 +186,8 @@ Keys of every step:
 | database unreachable, query refused | stops the sequence |
 | download: the file exists | this value fails, the sequence goes on |
 | guard: the step is not needed | not a failure, the next steps go on |
+| sql: no row (without `allowEmpty`), file missing or unreadable | this value fails, the sequence goes on |
+| command: unexpected exit code, timeout | this value fails (`stopOnError: true` stops the sequence) |
 
 Inside a `forEach`, a failure that does not stop the sequence abandons the later steps of that value
 only.

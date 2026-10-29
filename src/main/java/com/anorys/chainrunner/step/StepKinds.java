@@ -13,7 +13,8 @@ public final class StepKinds {
     /** The type of a step written without {@code type:}. */
     public static final String DEFAULT = "http";
 
-    private static final List<StepKind> ALL = List.of(new HttpStep.Kind(), new PollStep.Kind());
+    private static final List<StepKind> ALL = List.of(new HttpStep.Kind(), new PollStep.Kind(), new SqlStep.Kind(),
+            new FileStep.Kind(), new CommandStep.Kind());
 
     private StepKinds() {
     }
@@ -23,7 +24,7 @@ public final class StepKinds {
         return ALL.stream().filter(k -> k.type().equals(wanted)).findFirst();
     }
 
-    /** {@code http, poll}: for error messages. */
+    /** {@code http, poll, sql...}: for error messages. */
     public static List<String> types() {
         return ALL.stream().map(StepKind::type).toList();
     }

@@ -38,6 +38,14 @@ public interface Step {
         return List.of();
     }
 
+    /**
+     * The RESULT column of the steps list once the step has run, when it has no HTTP status: {@code found},
+     * {@code exit 0}... null shows nothing (and a dash for a failure).
+     */
+    default String outcome(CallResult result) {
+        return null;
+    }
+
     /** Whether the step calls one of the environment's APIs ({@link #api()}). */
     default boolean callsApi() {
         return false;

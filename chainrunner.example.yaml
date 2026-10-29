@@ -212,3 +212,24 @@ sequences:
   #       api: orders
   #       method: GET
   #       path: /api/v1/things/{{thingId}}
+
+  # Other types of steps: a query run once, a file read, a program run.
+  # files-and-programs:
+  #   steps:
+  #     - name: Accounts to export
+  #       type: sql
+  #       database: orders
+  #       sql: select account_id from account where active
+  #       extract:
+  #         accountIds: account_id[]      # every row; account_id alone takes the first row
+  #     - name: Reference data
+  #       type: file
+  #       path: data/reference.csv        # relative to this file; json, csv or text
+  #       extract:
+  #         labels: label[]
+  #     - name: Notify
+  #       type: command
+  #       run: [./notify.sh, "{{env}}"]   # a list runs the program directly, a text through the shell
+  #       input: { accounts: "{{accountIds}}" }
+  #       extract:
+  #         ticket: /ticket               # JSON pointer into the program's output, or stdout / exitCode

@@ -309,10 +309,11 @@ public final class MainView {
                     Span.styled(Paint.pad(call.call().method(), methodWidth), method(call.call().method())),
                     Span.styled(Paint.pad(Paint.ellipsis(call.name(), nameWidth - 1), nameWidth),
                             selected ? theme.fg(Theme.TEXT).bold() : result.status() == CallResult.Status.SKIPPED ? theme.muted() : theme.text()),
-                    Span.styled(Paint.pad(outcome(result), statusWidth),
+                    Span.styled(Paint.pad(outcome(call.call().step(), result), statusWidth),
                             theme.state(result.status() == CallResult.Status.RUNNING ? Tone.RUNNING
                                     : result.status() == CallResult.Status.UNNEEDED ? Tone.IDLE
-                                    : result.httpStatus() == null && !isSql(result) ? Tone.IDLE : result.ok() ? Tone.OK : Tone.ERROR)),
+                                    : result.httpStatus() == null && call.call().step().outcome(result) == null ? Tone.IDLE
+                                    : result.ok() ? Tone.OK : Tone.ERROR)),
                     Span.styled(String.format(Locale.ROOT, "%" + timeWidth + "s", result.duration() == null ? "" : millis(result.duration())), theme.subtext()));
         }
         if (calls.isEmpty()) {
@@ -320,12 +321,8 @@ public final class MainView {
         }
     }
 
-    private static boolean isSql(CallResult result) {
-        return result.request() != null && result.request().sql();
-    }
-
-    /** The RESULT column: the HTTP status, a poll's attempt or outcome. */
-    private static String outcome(CallResult result) {
+    /** The RESULT column: the HTTP status, a poll's attempt, or what the step says of its outcome. */
+    private static String outcome(Step step, CallResult result) {
         if (result.httpStatus() != null) {
             return String.valueOf(result.httpStatus());
         }
@@ -336,12 +333,9 @@ public final class MainView {
         if (result.status() == CallResult.Status.UNNEEDED) {
             return "unneeded";
         }
-        if (isSql(result) && result.status() == CallResult.Status.OK) {
-            return "found";
-        }
-        if (isSql(result) && result.status() == CallResult.Status.FAILED && result.error() != null
-                && result.error().startsWith("no row")) {
-            return "timeout";
+        String own = result.status() == CallResult.Status.OK || result.status() == CallResult.Status.FAILED ? step.outcome(result) : null;
+        if (own != null) {
+            return own;
         }
         return result.status() == CallResult.Status.FAILED ? "–" : "";
     }
@@ -435,7 +429,7 @@ public final class MainView {
                     lines.add(Line.from(Span.styled("  " + note, theme.subtext())));
                 }
             } else {
-                addResponse(lines, result, width);
+                addResponse(lines, step, result, width);
             }
         }
         int scroll = Math.max(0, Math.min(state.detailScroll(), lines.size() - 1));
@@ -473,7 +467,7 @@ public final class MainView {
             return;
         }
         String url = request.url();
-        int q = url.indexOf('?');
+        int q = request.http() ? url.indexOf('?') : -1;
         String base = q < 0 ? url : url.substring(0, q);
         List<String> wrapped = Paint.wrap(request.method() + " " + base, width);
         for (int i = 0; i < wrapped.size(); i++) {
@@ -508,7 +502,7 @@ public final class MainView {
         }
     }
 
-    private void addResponse(List<Line> lines, CallResult result, int width) {
+    private void addResponse(List<Line> lines, Step step, CallResult result, int width) {
         Tone tone = tone(result);
         List<Span> head = new ArrayList<>();
         head.add(Span.styled("RESPONSE  ", theme.header()));
@@ -518,7 +512,7 @@ public final class MainView {
             head.add(theme.badge(Tone.IDLE, "not needed"));
         } else {
             head.add(theme.badge(tone, result.httpStatus() != null ? "HTTP " + result.httpStatus()
-                    : isSql(result) && result.ok() ? "found" : "error"));
+                    : step.outcome(result) != null ? step.outcome(result) : result.ok() ? "ok" : "error"));
             if (result.duration() != null) {
                 head.add(Span.styled("  " + millis(result.duration()), theme.subtext()));
             }

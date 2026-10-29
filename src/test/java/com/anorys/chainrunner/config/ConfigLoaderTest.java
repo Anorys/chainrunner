@@ -133,7 +133,7 @@ class ConfigLoaderTest {
 
         assertThatThrownBy(() -> parse(head + "      - { type: poll }\n")).hasMessageContaining("sql is required");
         assertThatThrownBy(() -> parse(head + "      - { type: ftp, path: /x }\n"))
-                .hasMessage("sequences.s.steps[0].type: 'ftp' is unknown (http, poll)");
+                .hasMessage("sequences.s.steps[0].type: 'ftp' is unknown (http, poll, sql, file, command)");
         assertThatThrownBy(() -> parse(head + "      - { type: poll, sql: x, every: soon }\n")).hasMessageContaining("every");
         assertThatThrownBy(() -> parse(head + "      - { type: poll, sql: x, onTimeout: wait }\n")).hasMessageContaining("next, stop");
         assertThatThrownBy(() -> parse(head + "      - { type: soap, sql: x }\n")).hasMessageContaining("http, poll");
