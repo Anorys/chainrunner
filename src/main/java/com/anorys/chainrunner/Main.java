@@ -5,6 +5,7 @@ import com.anorys.chainrunner.cli.SelfUpdate;
 import com.anorys.chainrunner.config.ChainRunnerConfig;
 import com.anorys.chainrunner.config.ConfigException;
 import com.anorys.chainrunner.config.ConfigLoader;
+import com.anorys.chainrunner.core.Tls;
 import com.anorys.chainrunner.tui.App;
 import com.anorys.chainrunner.tui.SystemTerminal;
 import com.anorys.chainrunner.tui.theme.Theme;
@@ -63,6 +64,10 @@ public final class Main {
         }
         if (a.version) {
             out.println("chainrunner " + version());
+            return OK;
+        }
+        if (a.checkTls) {
+            out.println(Tls.describe());
             return OK;
         }
         if (a.checkTerminal) {
@@ -142,6 +147,7 @@ public final class Main {
         boolean help;
         boolean version;
         boolean checkTerminal;
+        boolean checkTls;
         boolean noUpdateCheck;
 
         static Arguments parse(String[] args) {
@@ -173,6 +179,7 @@ public final class Main {
                     case "-h", "--help" -> a.help = true;
                     case "-V", "--version" -> a.version = true;
                     case "--check-terminal" -> a.checkTerminal = true;
+                    case "--check-tls" -> a.checkTls = true;
                     case "--no-update-check" -> a.noUpdateCheck = true;
                     default -> throw new IllegalArgumentException("unknown option '" + args[i] + "'");
                 }
@@ -207,6 +214,7 @@ public final class Main {
               -y, --yes              does not ask for confirmation (with --run)
                   --list             lists the environments and the sequences
                   --no-update-check  does not look for a newer release
+                  --check-tls        says where the trusted certificates come from
               -V, --version          version
               -h, --help             this help
 

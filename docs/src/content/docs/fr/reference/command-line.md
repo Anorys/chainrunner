@@ -23,6 +23,7 @@ s'exécute comme avec `--run`.
 | `--list` | liste les environnements et les séquences |
 | `--no-update-check` | ne cherche pas de nouvelle version |
 | `--check-terminal` | indique quel support de terminal a été chargé (diagnostic) |
+| `--check-tls` | indique d'où viennent les certificats de confiance (diagnostic) |
 | `-V`, `--version` | la version |
 | `-h`, `--help` | l'aide |
 
@@ -33,6 +34,22 @@ s'exécute comme avec `--run`.
 | `--check` | dit seulement si une version plus récente existe |
 | `--to X.Y.Z` | installe cette version, même plus ancienne |
 | `--force` | installe même si cette version est déjà la dernière |
+
+## Certificats
+
+Les requêtes HTTPS (étapes, jetons, vérification des versions, `self-update`) font confiance aux
+autorités de certification fournies avec Java et, sous Windows, aussi à celles du magasin racine de
+Windows (*Autorités de certification racines de confiance*, de la machine et de l'utilisateur). Un
+proxy d'entreprise qui déchiffre le HTTPS est donc accepté dès que son certificat est installé dans
+Windows, comme pour les navigateurs. `chainrunner --check-tls` montre ce qui a été chargé :
+
+```text
+TLS trust: Java (146 certificates) + Windows (63 certificates)
+```
+
+Sous Linux et macOS, seule la liste de Java est utilisée ; on peut en donner une autre avec
+`-Djavax.net.ssl.trustStore=/chemin/truststore.jks -Djavax.net.ssl.trustStorePassword=changeit`.
+`options.insecureTls: true` désactive la vérification pour les étapes (serveurs de test seulement).
 
 ## Variables d'environnement
 

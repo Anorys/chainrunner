@@ -11,7 +11,10 @@ import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.concurrent.Executors;
 
-/** The JDK HTTP client, as every call uses it: system proxy, redirects, and optionally no TLS check. */
+/**
+ * The JDK HTTP client, as every call uses it: system proxy, redirects, the certificates of {@link Tls}, and
+ * optionally no TLS check.
+ */
 public final class Http {
 
     private Http() {
@@ -24,9 +27,7 @@ public final class Http {
                 .proxy(ProxySelector.getDefault())
                 // Platform threads: virtual threads crash the Windows native image.
                 .executor(Executors.newCachedThreadPool(Thread.ofPlatform().name("chainrunner-http-", 1).daemon().factory()));
-        if (insecureTls) {
-            builder.sslContext(trustAll());
-        }
+        builder.sslContext(insecureTls ? trustAll() : Tls.context());
         return builder.build();
     }
 
