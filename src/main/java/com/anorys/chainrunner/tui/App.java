@@ -19,8 +19,8 @@ import com.anorys.chainrunner.tui.AppState.Dialog;
 import com.anorys.chainrunner.tui.AppState.DialogLine;
 import com.anorys.chainrunner.tui.AppState.Input;
 import com.anorys.chainrunner.tui.AppState.Menu;
-import com.anorys.chainrunner.tui.AppState.TokenPhase;
 import com.anorys.chainrunner.tui.AppState.Toast;
+import com.anorys.chainrunner.tui.AppState.TokenPhase;
 import com.anorys.chainrunner.tui.theme.Theme;
 import com.anorys.chainrunner.tui.theme.Tone;
 import com.anorys.chainrunner.tui.view.MainView;
@@ -316,7 +316,7 @@ public final class App {
                     }
                     String api;
                     try {
-                        api = env.api(call.call().api()).name();
+                        api = call.call().step().callsApi() ? env.api(call.call().step().api()).name() : null;
                     } catch (IllegalArgumentException e) {
                         api = null;
                     }

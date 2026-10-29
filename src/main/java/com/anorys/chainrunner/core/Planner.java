@@ -48,7 +48,7 @@ public final class Planner {
         Map<String, ChainRunnerConfig.Database> used = new LinkedHashMap<>();
         for (PlannedCall planned : calls) {
             Call call = planned.call();
-            if (call.isPoll()) {
+            if (call.step().usesDatabase()) {
                 ChainRunnerConfig.Database db = env.database(call.database());
                 used.putIfAbsent(db.name(), db);
             }

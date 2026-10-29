@@ -7,14 +7,12 @@ import com.anorys.chainrunner.config.ChainRunnerConfig.Database;
 import com.anorys.chainrunner.config.ChainRunnerConfig.Environment;
 import com.anorys.chainrunner.config.ChainRunnerConfig.GrantType;
 import com.anorys.chainrunner.config.ChainRunnerConfig.Guard;
-import com.anorys.chainrunner.config.ChainRunnerConfig.OnManyRows;
-import com.anorys.chainrunner.config.ChainRunnerConfig.OnTimeout;
 import com.anorys.chainrunner.config.ChainRunnerConfig.Options;
 import com.anorys.chainrunner.config.ChainRunnerConfig.Order;
-import com.anorys.chainrunner.config.ChainRunnerConfig.Poll;
-import com.anorys.chainrunner.config.ChainRunnerConfig.Save;
 import com.anorys.chainrunner.config.ChainRunnerConfig.Sequence;
-import com.anorys.chainrunner.config.ChainRunnerConfig.StepType;
+import com.anorys.chainrunner.step.Step;
+import com.anorys.chainrunner.step.StepKind;
+import com.anorys.chainrunner.step.StepKinds;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,7 +34,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -52,7 +49,6 @@ public final class ConfigLoader {
 
     private static final Pattern ENV = Pattern.compile("\\$\\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?}");
     private static final Pattern DURATION = Pattern.compile("(\\d+)\\s*(ms|s|m|min|h)?");
-    private static final Set<String> METHODS = Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS");
 
     private final Function<String, String> env;
 
@@ -272,62 +268,19 @@ public final class ConfigLoader {
                 order, calls);
     }
 
+    /**
+     * The fields every step shares here; the others are read by the step's kind ({@code type:}, http when
+     * left out), as listed in {@link StepKinds}.
+     */
     private Call call(JsonNode node, String where) {
         requireObject(node, where);
-        StepType type = choice(node, "type", StepType.HTTP, where);
-        Boolean stopOnServerError = node.hasNonNull("stopOnServerError") ? node.get("stopOnServerError").asBoolean() : null;
-        Boolean stopOnClientError = node.hasNonNull("stopOnClientError") ? node.get("stopOnClientError").asBoolean() : null;
-        Guard guard = guard(node, where);
-        if (type == StepType.POLL) {
-            String sql = text(node, "sql", "");
-            if (sql.isBlank()) {
-                throw new ConfigException(where + ".sql is required for a poll step");
-            }
-            Poll poll = new Poll(sql.strip(), duration(node, "every", Duration.ofSeconds(10), where),
-                    duration(node, "timeout", Duration.ofMinutes(15), where),
-                    choice(node, "onTimeout", OnTimeout.NEXT, where), choice(node, "onManyRows", OnManyRows.FIRST, where));
-            return new Call(text(node, "name", "poll"), type, "SQL", null, null, Map.of(), Map.of(), null,
-                    values(node.path("forEach"), where + ".forEach"), List.of(), strings(node.path("extract"), where + ".extract"),
-                    false, node.path("enabled").asBoolean(true), stopOnServerError, stopOnClientError, poll, null, null, guard,
-                    text(node, "database", null));
-        }
-        String method = text(node, "method", "GET").toUpperCase(Locale.ROOT);
-        if (!METHODS.contains(method)) {
-            throw new ConfigException(where + ".method: '" + method + "' is not an HTTP method");
-        }
-        String path = text(node, "path", null);
-        String url = text(node, "url", null);
-        if ((path == null || path.isBlank()) && (url == null || url.isBlank())) {
-            throw new ConfigException(where + ": 'path' (relative to baseUrl) or 'url' is required");
-        }
-        List<Integer> expect = new ArrayList<>();
-        JsonNode expectNode = node.path("expectStatus");
-        if (expectNode.isArray()) {
-            expectNode.forEach(n -> expect.add(n.asInt()));
-        } else if (expectNode.isNumber()) {
-            expect.add(expectNode.asInt());
-        }
-        JsonNode body = node.get("body");
-        Save save = null;
-        String saveTo = text(node, "saveTo", null);
-        if (saveTo != null && !saveTo.isBlank()) {
-            String saveAs = text(node, "saveAs", "raw").strip();
-            String pointer = null;
-            if (saveAs.startsWith("base64:")) {
-                pointer = saveAs.substring(7).strip();
-                pointer = pointer.startsWith("/") ? pointer : "/" + pointer.replaceFirst("^\\$?\\.?", "").replace('.', '/');
-            } else if (!saveAs.equals("raw")) {
-                throw new ConfigException(where + ".saveAs: '" + saveAs + "' is unknown (raw or base64:/json/pointer)");
-            }
-            save = new Save(saveTo, pointer, node.path("overwrite").asBoolean(false));
-        }
-        return new Call(text(node, "name", method + " " + (path != null ? path : url)), StepType.HTTP, method, path, url,
-                values(node.path("query"), where + ".query"), strings(node.path("headers"), where + ".headers"),
-                body == null || body.isNull() ? null : body, values(node.path("forEach"), where + ".forEach"),
-                List.copyOf(expect), strings(node.path("extract"), where + ".extract"),
-                node.path("auth").asBoolean(true), node.path("enabled").asBoolean(true),
-                stopOnServerError, stopOnClientError, null, save, text(node, "api", null), guard,
-                text(node, "database", null));
+        String type = text(node, "type", StepKinds.DEFAULT);
+        StepKind kind = StepKinds.find(type.isBlank() ? StepKinds.DEFAULT : type).orElseThrow(() -> new ConfigException(
+                where + ".type: '" + type + "' is unknown (" + String.join(", ", StepKinds.types()) + ")"));
+        Step step = kind.parse(new StepFields(node, where));
+        return new Call(text(node, "name", step.defaultName()), step, values(node.path("forEach"), where + ".forEach"),
+                strings(node.path("extract"), where + ".extract"), node.path("enabled").asBoolean(true),
+                guard(node, where), text(node, "database", null));
     }
 
     /** {@code skipIf} or {@code onlyIf}: a query, written alone or as {@code { sql: ..., database: ... }}. */
@@ -370,7 +323,7 @@ public final class ConfigLoader {
     }
 
     /** An enum value written in lower case ({@code client_credentials}, {@code next}). */
-    private static <E extends Enum<E>> E choice(JsonNode node, String field, E fallback, String where) {
+    static <E extends Enum<E>> E choice(JsonNode node, String field, E fallback, String where) {
         String value = text(node, field, null);
         if (value == null || value.isBlank()) {
             return fallback;
@@ -422,7 +375,7 @@ public final class ConfigLoader {
     }
 
     /** A map of scalars or lists of scalars: strings, booleans and numbers keep their type. */
-    private static Map<String, Object> values(JsonNode node, String where) {
+    static Map<String, Object> values(JsonNode node, String where) {
         if (node.isMissingNode() || node.isNull()) {
             return Map.of();
         }
@@ -460,7 +413,7 @@ public final class ConfigLoader {
         throw new ConfigException(where + " must be a value or a list of values");
     }
 
-    private static Map<String, String> strings(JsonNode node, String where) {
+    static Map<String, String> strings(JsonNode node, String where) {
         if (node.isMissingNode() || node.isNull()) {
             return Map.of();
         }
@@ -476,12 +429,12 @@ public final class ConfigLoader {
         return map;
     }
 
-    private static String text(JsonNode node, String field, String fallback) {
+    static String text(JsonNode node, String field, String fallback) {
         JsonNode value = node.get(field);
         return value == null || value.isNull() ? fallback : value.asText();
     }
 
-    private static void requireObject(JsonNode node, String where) {
+    static void requireObject(JsonNode node, String where) {
         if (!node.isObject()) {
             throw new ConfigException(where + " must be a YAML object (key: value)");
         }

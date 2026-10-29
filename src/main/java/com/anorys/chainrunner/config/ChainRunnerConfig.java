@@ -1,6 +1,6 @@
 package com.anorys.chainrunner.config;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.anorys.chainrunner.step.Step;
 
 import java.nio.file.Path;
 import java.time.Duration;
@@ -176,27 +176,18 @@ public record ChainRunnerConfig(Path file, String defaultEnvironment, Map<String
     public record Sequence(String name, String description, Map<String, Object> forEach, Order order, List<Call> calls) {
     }
 
-    public enum StepType {
-        /** An HTTP call; with {@code saveTo}, a download. */
-        HTTP,
-        /** A SQL query run again and again until it returns a row. */
-        POLL
-    }
-
     /**
-     * One step as written in the file: its fields may hold {@code {{variables}}}, and {@code forEach}
-     * turns it into one step per value (or per combination of values). {@code stopOnServerError} and
-     * {@code stopOnClientError} override the options when set. {@code api} names the API an HTTP step
-     * calls, {@code database} the database a poll step and the guard query.
+     * One step as written in the file: what every step shares, and its {@link Step} (what {@code type:}
+     * names) for the rest. Its fields may hold {@code {{variables}}}, and {@code forEach} turns it into one
+     * step per value (or per combination of values). {@code extract} names the values the step reads into
+     * variables; {@code database} is the database its query and its guard run on.
      */
-    public record Call(String name, StepType type, String method, String path, String url, Map<String, Object> query,
-                       Map<String, String> headers, JsonNode body, Map<String, Object> forEach,
-                       List<Integer> expectStatus, Map<String, String> extract, boolean auth, boolean enabled,
-                       Boolean stopOnServerError, Boolean stopOnClientError, Poll poll, Save save, String api,
-                       Guard guard, String database) {
+    public record Call(String name, Step step, Map<String, Object> forEach, Map<String, String> extract,
+                       boolean enabled, Guard guard, String database) {
 
-        public boolean isPoll() {
-            return type == StepType.POLL;
+        /** What the steps list shows in its METHOD column. */
+        public String method() {
+            return step.label();
         }
     }
 
@@ -213,27 +204,5 @@ public record ChainRunnerConfig(Path file, String defaultEnvironment, Map<String
         public String keyword() {
             return skipWhenFound ? "skipIf" : "onlyIf";
         }
-    }
-
-    public enum OnTimeout {
-        /** The step fails, the other steps of the same value are skipped, the sequence goes on. */
-        NEXT,
-        /** The sequence stops. */
-        STOP
-    }
-
-    public enum OnManyRows {
-        FIRST, FAIL
-    }
-
-    /** A {@code poll} step: its query, how often it runs and for how long. */
-    public record Poll(String sql, Duration every, Duration timeout, OnTimeout onTimeout, OnManyRows onManyRows) {
-    }
-
-    /**
-     * Where a download goes: {@code saveTo} (relative to the configuration), the body as is ({@code raw})
-     * or decoded from base64 at a JSON pointer of the response ({@code base64Pointer}).
-     */
-    public record Save(String saveTo, String base64Pointer, boolean overwrite) {
     }
 }
