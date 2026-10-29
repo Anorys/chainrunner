@@ -1,0 +1,56 @@
+---
+title: ChainRunner
+description: ChainRunner runs chains of API calls, each API with its own OAuth2 token, waiting on PostgreSQL queries and downloading documents between them.
+template: splash
+hero:
+  title: ChainRunner
+  tagline: >-
+    Chains of API calls, run one step after the other from a terminal UI or a script: each API with
+    its own OAuth2 token, waits on a database between the calls, documents downloaded at the end.
+  image:
+    file: ../../assets/hero-hexa.svg
+    alt: The Anorys faceted hexagon
+  actions:
+    - text: Get started
+      link: getting-started/introduction/
+      icon: right-arrow
+    - text: Download
+      link: getting-started/installation/
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+<CardGrid>
+	<Card title="Several APIs, one token each" icon="puzzle">
+		Password or client-credentials grants, Keycloak or any token endpoint. A 401 renews the token
+		and makes the call again once; settings shared by an environment are inherited field by field.
+	</Card>
+	<Card title="Waits on the database" icon="seti:db">
+		A poll step runs a PostgreSQL query until a row shows up, then hands its columns to the next
+		steps. Read-only connections, parameters bound, never concatenated.
+	</Card>
+	<Card title="Steps that are not needed" icon="approve-check">
+		`skipIf` and `onlyIf` run a query before a step and leave it out when the work is already done,
+		without counting it as a failure.
+	</Card>
+	<Card title="For each value" icon="list-format">
+		One step, or a whole sequence, for each value of a list: all the generations, then all the
+		waits, then all the downloads; or one value at a time.
+	</Card>
+	<Card title="A terminal UI, and a CLI" icon="laptop">
+		Pick an environment, edit a variable, run everything or one step, and read the request and the
+		response side by side. `--run` does the same in scripts and CI.
+	</Card>
+	<Card title="One native executable" icon="rocket">
+		Built with GraalVM for Windows, Linux and macOS: no JVM to install, and
+		`chainrunner self-update` installs the next release.
+	</Card>
+</CardGrid>
+
+![The ChainRunner terminal UI after a run](../../assets/screenshots/tui-done.png)
+
+<CardGrid>
+	<LinkCard title="Quick start" description="From the example configuration to a first run." href="getting-started/quick-start/" />
+	<LinkCard title="Configuration" description="Every key of chainrunner.yaml, with its default." href="reference/configuration/" />
+</CardGrid>

@@ -1,0 +1,24 @@
+target/
+*.class
+
+# Secrets and run logs
+.env
+logs/
+documents/
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local configuration (environments, hosts): keep it out of the repository
+/chainrunner.yaml
+
+# Documentation site (docs/)
+node_modules/
+docs/dist/
+docs/.astro/

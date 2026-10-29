@@ -1,0 +1,83 @@
+name: Auto release
+
+# After each pull request merged into main, publishes the next release. The pull request says how far
+# the version moves, by its title (Conventional Commits) or its labels:
+#   major  'feat!: ...', 'fix!: ...', a line starting 'BREAKING CHANGE:' in the description, or the
+#          label 'breaking'
+#   minor  'feat: ...' or the label 'feature' / 'enhancement'
+#   patch  anything else ('fix: ...', 'docs: ...', the label 'bug'...)
+# Commits pushed to main without a pull request publish nothing.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# One release at a time: a second merge waits for the first release, so it sees its tag.
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Next version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: next
+        name: Work out the next version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" \
+            --jq '[.[] | select(.merged_at != null and .base.ref == "main")][0] // empty')
+          if [ -z "$pr" ]; then
+            echo "No pull request merged with $GITHUB_SHA: nothing to release."
+            exit 0
+          fi
+          title=$(jq -r .title <<<"$pr")
+          body=$(jq -r '.body // ""' <<<"$pr")
+          labels=$(jq -r '[.labels[].name] | join(" ")' <<<"$pr")
+          number=$(jq -r .number <<<"$pr")
+
+          if [[ "$title" =~ ^[a-zA-Z]+(\([^\)]*\))?!: ]] || grep -qE '^BREAKING[ -]CHANGE:' <<<"$body" \
+              || [[ " $labels " == *" breaking "* ]]; then
+            bump=major
+          elif [[ "$title" =~ ^feat(\([^\)]*\))?: ]] || [[ " $labels " == *" feature "* ]] \
+              || [[ " $labels " == *" enhancement "* ]]; then
+            bump=minor
+          else
+            bump=patch
+          fi
+
+          latest=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)
+          if [ -z "$latest" ]; then
+            next=0.1.0
+          else
+            IFS=. read -r major minor patch <<<"${latest#v}"
+            case "$bump" in
+              major) next="$((major + 1)).0.0" ;;
+              minor) next="$major.$((minor + 1)).0" ;;
+              patch) next="$major.$minor.$((patch + 1))" ;;
+            esac
+          fi
+          echo "#$number '$title' [$labels]: $bump, ${latest:-none} -> $next" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "version=$next" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: version
+    if: needs.version.outputs.version != ''
+    uses: ./.github/workflows/release.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+    permissions:
+      contents: write

@@ -1,0 +1,153 @@
+/*
+ * Anorys visual identity ("C3 · Atlas dense Anorys", as for the ChainRunner terminal UI):
+ * green to act, grey to structure, the orange point used sparingly.
+ * Signika for titles, Heebo for text, JetBrains Mono for code.
+ */
+
+:root {
+	--sl-font: 'Heebo', sans-serif;
+	--sl-font-mono: 'JetBrains Mono', monospace;
+	--anorys-font-display: 'Signika', 'Heebo', sans-serif;
+	--anorys-spark: #ff7a1a;
+	--anorys-facet: #0e7a6b;
+	--anorys-facet-light: #17a58f;
+	--anorys-radius: 8px;
+}
+
+/* Dark mode (default) */
+:root {
+	--sl-color-accent-low: #163631;
+	--sl-color-accent: #1fb39c;
+	--sl-color-accent-high: #4fc1b1;
+	--sl-color-white: #ffffff;
+	--sl-color-gray-1: #e3e7e6;
+	--sl-color-gray-2: #c9cfcd;
+	--sl-color-gray-3: #a2aba8;
+	--sl-color-gray-4: #6e7875;
+	--sl-color-gray-5: #303535;
+	--sl-color-gray-6: #171919;
+	--sl-color-black: #202323;
+	--sl-color-orange: #f0a766;
+	--sl-color-orange-high: #f8d2ae;
+	--sl-color-orange-low: #3d2a18;
+	--sl-color-green: #5fd39a;
+	--sl-color-green-high: #b3ead0;
+	--sl-color-green-low: #173a2a;
+	--sl-color-blue: #86b3f2;
+	--sl-color-blue-high: #c6dbf9;
+	--sl-color-blue-low: #1b2a40;
+	--sl-color-purple: #bfa0f2;
+	--sl-color-purple-high: #e0d1f9;
+	--sl-color-purple-low: #2c2340;
+	--sl-color-red: #f07178;
+	--sl-color-red-high: #f8b9bc;
+	--sl-color-red-low: #3d1c1f;
+}
+
+:root[data-theme='light'] {
+	--sl-color-accent-low: #e2f1ee;
+	--sl-color-accent: #157a6e;
+	--sl-color-accent-high: #0b4f47;
+	--sl-color-white: #1f2523;
+	--sl-color-gray-1: #1f2523;
+	--sl-color-gray-2: #3a4240;
+	--sl-color-gray-3: #5c6461;
+	--sl-color-gray-4: #8a9390;
+	--sl-color-gray-5: #e1e1e1;
+	--sl-color-gray-6: #f0f0f0;
+	--sl-color-gray-7: #f5f5f5;
+	--sl-color-black: #fafafa;
+	--sl-color-orange: #b4530a;
+	--sl-color-orange-high: #7a3707;
+	--sl-color-orange-low: #fbe6d3;
+	--sl-color-green: #15805c;
+	--sl-color-green-high: #0d5a40;
+	--sl-color-green-low: #dcf2e8;
+	--sl-color-blue: #2e64b8;
+	--sl-color-blue-high: #1c437f;
+	--sl-color-blue-low: #e0eaf8;
+	--sl-color-purple: #7a4fb8;
+	--sl-color-purple-high: #53347f;
+	--sl-color-purple-low: #ece4f7;
+	--sl-color-red: #b3363d;
+	--sl-color-red-high: #7f2328;
+	--sl-color-red-low: #f8e0e1;
+	--sl-color-bg-sidebar: #f5f5f5;
+}
+
+/* Titles in Signika */
+h1,
+h2,
+h3,
+h4,
+.site-title,
+.hero h1,
+.sl-markdown-content :is(h1, h2, h3, h4, h5),
+.card .title {
+	font-family: var(--anorys-font-display);
+	font-weight: 600;
+	letter-spacing: -0.01em;
+}
+
+.site-title {
+	font-size: 1.35rem;
+	color: var(--sl-color-white);
+}
+
+/* The orange point: the site title's full stop, as in the logo */
+.site-title span::after {
+	content: '.';
+	color: var(--anorys-spark);
+}
+
+/* Home hero: the wordmark in the brand gradient */
+.hero h1 {
+	background: linear-gradient(90deg, var(--anorys-facet), var(--anorys-facet-light), #4fc1b1);
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+}
+
+.hero .tagline {
+	font-size: clamp(1.05rem, 1rem + 0.4vw, 1.3rem);
+}
+
+/* Buttons: green to act */
+.sl-link-button.primary,
+.action.primary {
+	border-radius: var(--anorys-radius);
+}
+
+/* Code */
+.expressive-code .frame,
+.sl-markdown-content :not(pre) > code {
+	border-radius: 6px;
+}
+
+/* Tables: grey structure, compact rows */
+.sl-markdown-content table {
+	font-size: var(--sl-text-sm);
+}
+
+.sl-markdown-content th {
+	font-weight: 600;
+	color: var(--sl-color-gray-2);
+}
+
+/* Screenshots of the terminal dashboard */
+.sl-markdown-content img[src*='tui-'] {
+	border-radius: 10px;
+	border: 1px solid var(--sl-color-gray-5);
+	box-shadow: var(--sl-shadow-md);
+}
+
+/* Feature cards: one green for every icon, rather than Starlight's rotating colors */
+.card-grid > .card {
+	--sl-card-border: var(--sl-color-accent);
+	--sl-card-bg: var(--sl-color-accent-low);
+}
+
+.hero h1 {
+	font-size: clamp(3rem, 2rem + 5vw, 5.5rem);
+	line-height: 1;
+}

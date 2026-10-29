@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build and test
+        shell: bash
+        run: ./mvnw -B -ntp verify
+      - uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          name: chainrunner-jar
+          path: target/chainrunner-*-all.jar
+          if-no-files-found: error
+
+  native:
+    name: Native executable (${{ matrix.os }})
+    needs: test
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            exe: chainrunner
+          - os: windows-latest
+            exe: chainrunner.exe
+          - os: macos-latest
+            exe: chainrunner
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          distribution: graalvm-community
+          java-version: '21'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache: maven
+      - name: Build native executable
+        shell: bash
+        run: ./mvnw -B -ntp -Pnative -DskipTests package
+      - name: Smoke test
+        shell: bash
+        env:
+          CHAINRUNNER_NO_UPDATE_CHECK: '1'
+        run: |
+          set -euo pipefail
+          exe="$PWD/target/${{ matrix.exe }}"
+          "$exe" --version
+          "$exe" --help > /dev/null
+          # JLine's native terminal support must load in the image, or the UI gets a dumb terminal.
+          "$exe" --check-terminal || true
+          "$exe" -c chainrunner.example.yaml --list
+          "$exe" -c chainrunner.example.yaml --dry-run -s generate-and-download --var accountIds=A1,A2
+          # A configuration error is reported with exit code 2, not a crash.
+          set +e
+          "$exe" -c chainrunner.example.yaml -e nowhere --list
+          code=$?
+          set -e
+          test "$code" -eq 2
+          # Without a terminal and without --yes, a run refuses to start (exit 2) instead of hanging.
+          set +e
+          "$exe" -c chainrunner.example.yaml --run -s generate < /dev/null
+          code=$?
+          set -e
+          test "$code" -eq 2
+          "$exe" self-update --help > /dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chainrunner-${{ runner.os }}
+          path: target/${{ matrix.exe }}
+          if-no-files-found: error

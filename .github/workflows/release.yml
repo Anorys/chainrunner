@@ -1,0 +1,100 @@
+name: Release
+
+# Pushing a tag vX.Y.Z, running the workflow by hand with version X.Y.Z, or Auto release (after each
+# pull request merged into main) builds the native executables at version X.Y.Z and publishes them as
+# the GitHub release vX.Y.Z, with their SHA256SUMS (the tag is created on the commit that was built
+# when it does not exist yet).
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, without the v (for example 0.1.0)
+        required: true
+  workflow_call:
+    inputs:
+      version:
+        description: Version to release, without the v
+        type: string
+        required: true
+
+env:
+  TAG: ${{ inputs.version && format('v{0}', inputs.version) || github.ref_name }}
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: Native executable (${{ matrix.os }})
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: ubuntu-latest
+            exe: chainrunner
+            asset: linux-x64
+          - os: windows-latest
+            exe: chainrunner.exe
+            asset: windows-x64.exe
+          - os: macos-latest
+            exe: chainrunner
+            asset: macos-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          distribution: graalvm-community
+          java-version: '21'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache: maven
+      - name: Set the version from the tag
+        shell: bash
+        run: |
+          [[ "${TAG#v}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::invalid version: ${TAG#v}"; exit 1; }
+          ./mvnw -B -ntp versions:set -DnewVersion="${TAG#v}" -DgenerateBackupPoms=false
+      - name: Test and build native executable
+        shell: bash
+        run: ./mvnw -B -ntp -Pnative package
+      - name: Check the version
+        shell: bash
+        run: |
+          set -euo pipefail
+          exe="$PWD/target/${{ matrix.exe }}"
+          "$exe" --version | tr -d '\r' | tee "$RUNNER_TEMP/version.txt"
+          grep -q "^chainrunner ${TAG#v}\$" "$RUNNER_TEMP/version.txt"
+          mkdir -p dist
+          cp "$exe" "dist/chainrunner-${TAG#v}-${{ matrix.asset }}"
+      - name: Keep the jar
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: cp target/chainrunner-"${TAG#v}"-all.jar "dist/chainrunner-${TAG#v}.jar"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ runner.os }}
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: Publish release
+    needs: native
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum chainrunner-* > SHA256SUMS
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "ChainRunner ${TAG#v}" --generate-notes ./*

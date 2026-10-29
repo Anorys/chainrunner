@@ -1,0 +1,214 @@
+# ChainRunner: runs chains of API calls, each API with its own token.
+#
+# ${NAME} and ${NAME:-default}: environment variables, or the .env file next to this file.
+# {{name}}                    : the variables below ('variables'), those of the chosen environment,
+#                               edited in the UI (key v) or on the command line (--var).
+#                               Built in: {{env}}, {{today}} (2026-10-28), {{now}}.
+# Filters                     : {{today | date("YYYY")}} -> 2026, {{today | date("MM")}} -> 10,
+#                               {{today | plusMonths(-1) | date("MM")}} -> 09, {{x | number}}, upper, lower, trim.
+
+defaultEnvironment: dev
+
+environments:
+  dev:
+    label: Development
+    # The environment's 'auth': defaults, taken field by field by every API that does not set them.
+    # Nothing is required in it, and it makes no token on its own.
+    auth:
+      grantType: password            # password | client_credentials | none
+      tokenUrl: https://sso-dev.example.com/realms/example/protocol/openid-connect/token
+      clientId: ${DEV_CLIENT_ID}
+      clientSecret: ${DEV_CLIENT_SECRET:-}
+      username: ${DEV_USERNAME}
+      password: ${DEV_PASSWORD:-}    # empty: asked for at the first call
+      # header: Authorization        # header that carries the token (default)
+      # prefix: "Bearer "            # before the token (default)
+    apis:                            # each step picks its own with 'api: <name>'
+      orders:                       # each API has its own token
+        baseUrl: https://orders-dev.example.com
+                                     # no 'auth': everything comes from the environment's auth
+      document:
+        baseUrl: ${DEV_DOCUMENT_URL:-https://document-dev.example.com}
+        auth:                        # replaces only these fields; tokenUrl, username... are inherited
+          grantType: client_credentials
+          clientId: ${DEV_DOCUMENT_CLIENT_ID:-}
+          clientSecret: ${DEV_DOCUMENT_CLIENT_SECRET:-}
+          # clientAuth: basic        # client id/secret in a Basic header rather than in the form
+        # headers: { X-Application: chainrunner }
+    # The environment's 'database': defaults, taken field by field by every database below.
+    database:
+      username: ${DEV_DB_USERNAME:-}
+      password: ${DEV_DB_PASSWORD:-} # empty: asked for at the first query
+    databases:                       # poll steps and guards pick theirs with 'database: <name>'
+      orders:                       # PostgreSQL, always read-only
+        url: ${DEV_DB_URL:-jdbc:postgresql://localhost:5432/orders}
+      document:
+        url: ${DEV_DOCUMENT_DB_URL:-jdbc:postgresql://localhost:5432/document}
+
+  acc:
+    label: Acceptance
+    apis:
+      orders: { baseUrl: "${ACC_BASE_URL:-https://orders-acc.example.com}" }
+      document: { baseUrl: "${ACC_DOCUMENT_URL:-https://document-acc.example.com}" }
+    auth:
+      tokenUrl: ${ACC_TOKEN_URL:-https://sso-acc.example.com/realms/example/protocol/openid-connect/token}
+      clientId: ${ACC_CLIENT_ID}
+      clientSecret: ${ACC_CLIENT_SECRET:-}
+      username: ${ACC_USERNAME}
+      password: ${ACC_PASSWORD:-}
+    database:
+      username: ${ACC_DB_USERNAME:-}
+      password: ${ACC_DB_PASSWORD:-}
+    databases:
+      orders: { url: "${ACC_DB_URL:-jdbc:postgresql://localhost:5432/orders}" }
+      document: { url: "${ACC_DOCUMENT_DB_URL:-jdbc:postgresql://localhost:5432/document}" }
+
+  prod:
+    label: Production
+    protected: true                  # red banner, and 'prod' must be typed to run
+    apis:
+      orders: { baseUrl: "${PROD_BASE_URL:-https://orders.example.com}" }
+      document: { baseUrl: "${PROD_DOCUMENT_URL:-https://document.example.com}" }
+    auth:
+      tokenUrl: ${PROD_TOKEN_URL:-https://sso.example.com/realms/example/protocol/openid-connect/token}
+      clientId: ${PROD_CLIENT_ID}
+      clientSecret: ${PROD_CLIENT_SECRET:-}
+      username: ${PROD_USERNAME}
+      password: ${PROD_PASSWORD:-}
+    database:
+      username: ${PROD_DB_USERNAME:-}
+      password: ${PROD_DB_PASSWORD:-}
+    databases:
+      orders: { url: "${PROD_DB_URL:-jdbc:postgresql://localhost:5432/orders}" }
+      document: { url: "${PROD_DOCUMENT_DB_URL:-jdbc:postgresql://localhost:5432/document}" }
+    variables:
+      notify: true                   # a variable can belong to one environment
+
+options:
+  timeoutSeconds: 120
+  # Chaining rules: 2xx = next step; 401 = new token (refresh) then the call is made again once;
+  # 5xx = the sequence stops. A network error or a refused token always stops it.
+  stopOnServerError: true            # 5xx: stop the sequence
+  stopOnClientError: false           # other 4xx (404...): record the failure and go on
+  delayMillis: 0                     # pause between two steps
+  insecureTls: false                 # true: accepts self-signed certificates (tests only)
+  logDir: logs                       # one log per run; empty for none
+  # maxBodyChars: 20000              # longest response shown and logged
+
+variables:
+  accountIds: [ACC001, ACC002, ACC003]
+  dryRunOnServer: false
+  notify: false
+  documentDir: documents             # where documents are saved (relative to this file)
+
+sequences:
+  generate:
+    description: Generates the export file of each account, one call per account
+    steps:
+      - name: "Generate {{accountId}}"
+        api: orders
+        method: POST
+        path: /api/v1/exports
+        forEach:
+          accountId: "{{accountIds}}"  # one call per value of the list
+        query:
+          accountId: "{{accountId}}"
+          dryRun: "{{dryRunOnServer}}"
+          notify: "{{notify}}"
+        expectStatus: [200, 204]
+
+  generate-and-download:
+    description: Generates the files, waits for each one in the database, then downloads its document
+    forEach:
+      accountId: "{{accountIds}}"     # every step is made for every account
+    order: phases                     # phases: all the generations, then all the waits, then all
+                                      #   the downloads; each: the three steps for one account
+                                      #   before the next one
+    steps:
+      - name: "Generate {{accountId}}"
+        api: orders
+        method: POST
+        path: /api/v1/exports
+        query:
+          accountId: "{{accountId}}"
+          dryRun: "{{dryRunOnServer}}"
+          notify: "{{notify}}"
+        expectStatus: [200, 204]
+        # Not made when this month's file already exists (the step is 'not needed', not failed).
+        # onlyIf: does the opposite (the call is made only when the query finds a row).
+        database: orders
+        skipIf: >-
+          select 1 from export_file
+          where account_id = {{accountId}}
+            and export_year = {{today | date("YYYY") | number}}
+            and export_month = {{today | date("MM") | number}}
+
+      - name: "File {{accountId}} in the database"
+        type: poll                    # runs the query again and again until it returns a row
+        database: orders
+        # {{variable}} becomes a parameter of the query (no quotes, no injection); a list becomes
+        # ?, ?, ? (for an 'in (...)'). Only select and with queries are accepted.
+        # Filters: {{today | date("YYYY")}}, {{today | date("MM")}}, {{today | plusDays(-1)}}...
+        sql: |
+          select doc_id
+          from export_file
+          where account_id = {{accountId}}
+            and export_year = {{today | date("YYYY")}}
+            and export_month = {{today | date("MM")}}
+          order by doc_id desc
+        every: 10s                    # one query every 10 s (500ms, 30s, 2m...)
+        timeout: 15m                  # at most 15 minutes per account
+        onTimeout: next               # next: this account fails, the others go on
+                                      # stop: the whole sequence stops
+        onManyRows: first             # several rows: first takes the first one, fail fails
+        extract:
+          docId: doc_id               # variable {{docId}} = column doc_id (case does not matter)
+
+      - name: "Document {{accountId}}"
+        api: document                 # the environment's 'document' API, with its own token
+        method: GET
+        path: /api/v1/documents/{{docId}}
+        # Not downloaded again when the document service already archived it.
+        skipIf:
+          database: document          # a guard may query another database than its step's
+          sql: select 1 from archived_document where id = {{docId}}
+        saveTo: "{{documentDir}}/{{env}}/{{today}}/{{accountId}}-{{docId}}.xml"
+        saveAs: raw                   # raw: the response as is (XML, PDF...)
+                                      # base64:/content: the 'content' field of a JSON response, decoded
+        overwrite: false              # a file already there is not replaced (the step fails)
+        # stopOnClientError: false    # the chaining rules, for this step only
+
+  download:
+    description: Waits and downloads only (the files are already generated)
+    forEach:
+      accountId: "{{accountIds}}"
+    steps:
+      - name: "File {{accountId}} in the database"
+        type: poll
+        database: orders
+        sql: select doc_id from export_file where account_id = {{accountId}} and created::date = {{today}}
+        every: 5s
+        timeout: 1m
+        extract:
+          docId: doc_id
+      - name: "Document {{accountId}}"
+        api: document
+        method: GET
+        path: /api/v1/documents/{{docId}}
+        saveTo: "{{documentDir}}/{{env}}/{{today}}/{{accountId}}-{{docId}}.xml"
+
+  # Chaining: a value extracted from a response is used by the next steps.
+  # create-then-read:
+  #   steps:
+  #     - name: Create
+  #       api: orders
+  #       method: POST
+  #       path: /api/v1/things
+  #       body: { name: "{{name}}", active: true }
+  #       extract:
+  #         thingId: /id                  # JSON pointer ($.id and id work too)
+  #         location: header:Location     # or a header of the response
+  #     - name: Read {{thingId}}
+  #       api: orders
+  #       method: GET
+  #       path: /api/v1/things/{{thingId}}
